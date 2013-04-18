@@ -21,6 +21,7 @@ func TestBsonInit(t *testing.T) {
     b := NewBson()
     st := b.Init()
     assert.Equals(t, st, BSON_OK)
+    b.Destroy()
 }
 
 func TestBsonFinish(t *testing.T) {
@@ -30,6 +31,7 @@ func TestBsonFinish(t *testing.T) {
     assert.Equals(t, st, BSON_OK)
     st = b.Finish()
     assert.Equals(t, st, BSON_OK)
+    b.Destroy()
 }
 
 func TestBson(t *testing.T) {

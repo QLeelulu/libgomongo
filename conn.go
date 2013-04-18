@@ -14,6 +14,10 @@ import "C"
 Connection API
 **********************************************************************/
 
+func (c *Mongo) ErrNo() MongoError {
+    return MongoError(c.conn.err)
+}
+
 // /** Initialize sockets for Windows.
 //  */
 // MONGO_EXPORT void mongo_init_sockets( void );
