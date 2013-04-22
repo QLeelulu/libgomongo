@@ -6,10 +6,10 @@ import (
     "testing"
 )
 
-const (
-    BSON_OK    = 0
-    BSON_ERROR = -1
-)
+type NewStruct struct {
+    name string
+    age  int
+}
 
 func TestNewBson(t *testing.T) {
     b := NewBson()
@@ -123,5 +123,54 @@ func TestBson(t *testing.T) {
     b.Print()
 
     scope.Destroy()
+    b.Destroy()
+}
+
+func TestBsonFromMap(t *testing.T) {
+    b := NewBson()
+    st := b.Init()
+    assert.Equals(t, st, BSON_OK)
+    m := map[string]interface{}{
+        "name":   "libgomongo",
+        "age":    1,
+        "lllong": int64(89893843454354),
+        "ver":    0.001,
+        "fast":   true,
+        "nil":    nil,
+        "arr":    []int{1, 2, 3}[:1],
+        "st":     NewStruct{},
+        "pst":    &NewStruct{},
+    }
+    st = b.FromMap(m)
+    assert.Equals(t, st, BSON_OK)
+    st = b.Finish()
+    assert.Equals(t, st, BSON_OK)
+
+    b.Print()
+    b.Destroy()
+}
+
+func TestBsonAppendArray(t *testing.T) {
+    var err error
+    b := NewBson()
+    st := b.Init()
+    assert.Equals(t, st, BSON_OK)
+    arr1 := []int{1, 2, 3}
+    arr2 := []interface{}{11, "name", true}
+    st, err = b.AppendArray("arr1", interface{}(arr1))
+    assert.Equals(t, err, nil)
+    assert.Equals(t, st, BSON_OK)
+    st, err = b.AppendArray("arr2", arr2)
+    assert.Equals(t, err, nil)
+    assert.Equals(t, st, BSON_OK)
+
+    b.AppendStartArray("newarr")
+    b.AppendInt("0", 1)
+    b.AppendInt("1", 2)
+    b.AppendFinishArray()
+    st = b.Finish()
+    assert.Equals(t, st, BSON_OK)
+
+    b.Print()
     b.Destroy()
 }

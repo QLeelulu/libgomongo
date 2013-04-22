@@ -5,10 +5,11 @@ package libgomongo
 // #include "mongo.h"
 import "C"
 
-// import (
-// // "errors"
-// // "fmt"
-// // "tim
+import (
+    "errors"
+    "fmt"
+    // "tim
+)
 
 /*********************************************************************
 Connection API
@@ -16,6 +17,50 @@ Connection API
 
 func (c *Mongo) ErrNo() MongoError {
     return MongoError(c.conn.err)
+}
+
+func (c *Mongo) Error() error {
+    var err error
+    status := c.ErrNo()
+    switch status {
+    case MONGO_CONN_SUCCESS:
+    case MONGO_CONN_NO_SOCKET:
+        err = errors.New("MongoDB: Could not create a socket.")
+    case MONGO_CONN_FAIL:
+        err = errors.New("MongoDB: An error occured while calling connect(). ")
+    case MONGO_CONN_ADDR_FAIL:
+        err = errors.New("MongoDB: An error occured while calling getaddrinfo().")
+    case MONGO_CONN_NOT_MASTER:
+        err = errors.New("MongoDB [Warning]: connected to a non-master node (read-only).")
+    case MONGO_CONN_BAD_SET_NAME:
+        err = errors.New("MongoDB: Given rs name doesn't match this replica set.")
+    case MONGO_CONN_NO_PRIMARY:
+        err = errors.New("MongoDB: Can't find primary in replica set. Connection closed.")
+
+    case MONGO_IO_ERROR:
+        err = errors.New("MongoDB: An error occurred while reading or writing on the socket.")
+    case MONGO_SOCKET_ERROR:
+        err = errors.New("MongoDB: Other socket error.")
+    case MONGO_READ_SIZE_ERROR:
+        err = errors.New("MongoDB: The response is not the expected length.")
+    case MONGO_COMMAND_FAILED:
+        err = errors.New("MongoDB: The command returned with 'ok' value of 0.")
+    case MONGO_WRITE_ERROR:
+        err = errors.New("MongoDB: Write with given write_concern returned an error.")
+    case MONGO_NS_INVALID:
+        err = errors.New("MongoDB: The name for the ns (database or collection) is invalid.")
+    case MONGO_BSON_INVALID:
+        err = errors.New("MongoDB: BSON not valid for the specified op.")
+    case MONGO_BSON_NOT_FINISHED:
+        err = errors.New("MongoDB: BSON object has not been finished.")
+    case MONGO_BSON_TOO_LARGE:
+        err = errors.New("MongoDB: BSON object exceeds max BSON size.")
+    case MONGO_WRITE_CONCERN_INVALID:
+        err = errors.New("MongoDB: Supplied write concern object is invalid.")
+    default:
+        err = errors.New(fmt.Sprintf("MongoDB: Unkonw error[%d]", status))
+    }
+    return err
 }
 
 // /** Initialize sockets for Windows.

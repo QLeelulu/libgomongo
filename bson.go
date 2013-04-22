@@ -6,10 +6,17 @@ package libgomongo
 import "C"
 
 import (
-    // "errors"
-    // "fmt"
+    "errors"
+    "fmt"
     // "time"
+    "reflect"
+    "strconv"
     "unsafe"
+)
+
+const (
+    BSON_OK    = 0
+    BSON_ERROR = -1
 )
 
 type BsonType int8
@@ -45,15 +52,41 @@ type BsonIterator struct {
     // bson     *C.bson
 }
 
+func BsonError(errNo int) error {
+    if errNo == BSON_OK {
+        return nil
+    }
+    return errors.New(fmt.Sprintf("Bson Error[%d]", errNo))
+}
+
 func NewBson() *Bson {
     b := &Bson{}
     b._bson = &C.bson{}
     return b
 }
 
+func NewBsonFromM(m M) *Bson {
+    b := &Bson{}
+    b._bson = &C.bson{}
+    b.Init()
+    b.FromMap(m)
+    b.Finish()
+    return b
+}
+
+func NewBsonIterator() *BsonIterator {
+    b := &BsonIterator{}
+    b.iterator = &C.bson_iterator{}
+    return b
+}
+
 func (b *Bson) Print() {
     C.bson_print(b._bson)
 }
+
+// func (b *Bson) PrintRaw(deep int) {
+//     C.bson_print_raw(b._bson, C.int(deep))
+// }
 
 func (b *Bson) Init() int {
     return int(C.bson_init(b._bson))
@@ -410,6 +443,103 @@ func (b *Bson) AppendFinishArray() int {
     return int(C.bson_append_finish_array(b._bson))
 }
 
+func (b *Bson) FromMap(m map[string]interface{}) int {
+    if m == nil {
+        return BSON_OK
+    }
+    r := BSON_OK
+    for k, v := range m {
+        r = b.appendValue(k, v)
+        if r != BSON_OK {
+            return r
+        }
+    }
+    return r
+}
+
+// @k: key
+// @v: value
+func (b *Bson) appendValue(k string, v interface{}) int {
+    switch v.(type) {
+    case nil:
+        return b.AppendNull(k)
+    case string:
+        return b.AppendString(k, v.(string))
+    case int, int8, int32:
+        return b.AppendInt(k, v.(int))
+    case int64:
+        return b.AppendLong(k, v.(int64))
+    case float64, float32:
+        return b.AppendDouble(k, v.(float64))
+    case bool:
+        return b.AppendBool(k, v.(bool))
+    case M:
+        return b.AppendMap(k, v.(M))
+    case map[string]interface{}:
+        return b.AppendMap(k, v.(map[string]interface{}))
+    default:
+        t := reflect.TypeOf(v)
+        switch t.Kind() {
+        case reflect.Array, reflect.Slice:
+            b._appendArray(k, v)
+        case reflect.Struct:
+            fmt.Println("[To Bson] type does not support ==> Struct")
+        case reflect.Ptr:
+            fmt.Println("[To Bson] type does not support ==> Ptr")
+        default:
+            panic(fmt.Sprintf("Unkonw type: %T, %d", v, t.Kind()))
+        }
+    }
+    return BSON_OK
+}
+
+func (b *Bson) AppendArray(key string, arr interface{}) (int, error) {
+    if arr == nil {
+        return b.AppendNull(key), nil
+    }
+    t := reflect.TypeOf(arr)
+    kind := t.Kind()
+    if kind != reflect.Array && kind != reflect.Slice {
+        return -1, errors.New(fmt.Sprintf("BSON Append Array: append value must be array or slice, but got [%d]%T", kind, arr))
+    }
+    r := b._appendArray(key, arr)
+    return r, nil
+}
+
+func (b *Bson) _appendArray(key string, arr interface{}) int {
+    r := BSON_OK
+    b.AppendStartArray(key)
+    v := reflect.ValueOf(arr)
+    n := v.Len()
+    for i := 0; i < n; i++ {
+        r = b.appendValue(strconv.Itoa(i), v.Index(i).Interface())
+        if r != BSON_OK {
+            return r
+        }
+    }
+    b.AppendFinishArray()
+    return r
+}
+
+func (b *Bson) AppendMap(key string, m map[string]interface{}) int {
+    if m == nil {
+        return b.AppendNull(key)
+    }
+    r := BSON_OK
+    b.AppendStartObject(key)
+    for k, v := range m {
+        r = b.appendValue(k, v)
+        if r != BSON_OK {
+            return r
+        }
+    }
+    b.AppendFinishObject()
+    return r
+}
+
+// func BsonFromMap(m map[string]interface{}) *Bson {
+// }
+
 /***************************************
 *
 * bson_iterator
@@ -453,23 +583,23 @@ func (it *BsonIterator) Init(bson *Bson) {
 //  */
 // MONGO_EXPORT void bson_iterator_from_buffer( bson_iterator *i, const char *buffer );
 
-// /* more returns true for eoo. best to loop with bson_iterator_next(&it) */
-// /**
-//  * Check to see if the bson_iterator has more data.
-//  *
-//  * @param i the iterator.
-//  *
-//  * @return  returns true if there is more data.
-//  */
+/* more returns true for eoo. best to loop with bson_iterator_next(&it) */
+/**
+ * Check to see if the bson_iterator has more data.
+ *
+ * @param i the iterator.
+ *
+ * @return  returns true if there is more data.
+ */
 // MONGO_EXPORT bson_bool_t bson_iterator_more( const bson_iterator *i );
 
-// /**
-//  * Point the iterator at the next BSON object.
-//  *
-//  * @param i the bson_iterator.
-//  *
-//  * @return the type of the next BSON object.
-//  */
+/**
+ * Point the iterator at the next BSON object.
+ *
+ * @param i the bson_iterator.
+ *
+ * @return the type of the next BSON object.
+ */
 // MONGO_EXPORT bson_type bson_iterator_next( bson_iterator *i );
 func (it *BsonIterator) Next() BsonType {
     return BsonType(C.bson_iterator_next(it.iterator))

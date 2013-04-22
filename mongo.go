@@ -5,11 +5,11 @@ package libgomongo
 // #include "mongo.h"
 import "C"
 
-// import (
-// // "errors"
-// // "fmt"
-// // "tim
-//)
+import (
+    "errors"
+    // "fmt"
+    // "tim
+)
 
 type MongoError int8
 type CursorError int8
@@ -48,6 +48,11 @@ const (
     MONGO_CURSOR_BSON_ERROR                    // Something is wrong with the BSON provided. See conn->err for details.
 )
 
+// M is a shortcut for writing map[string]interface{} in BSON literal
+// expressions. The type M is encoded the same as the type
+// map[string]interface{}.
+type M map[string]interface{}
+
 type Mongo struct {
     conn *C.mongo
 }
@@ -65,6 +70,11 @@ func NewMongo() *Mongo {
     m := &Mongo{}
     m.conn = &C.mongo{}
     return m
+}
+
+func (m *Mongo) Db(dbname string) *DB {
+    db := &DB{Name: dbname, Conn: m}
+    return db
 }
 
 /*********************************************************************
@@ -213,16 +223,23 @@ Cursor API
  */
 // MONGO_EXPORT mongo_cursor *mongo_find( mongo *conn, const char *ns, const bson *query,
 //                                        const bson *fields, int limit, int skip, int options );
-func (m *Mongo) Find(ns string, query *Bson, fields *Bson, limit, skip, options int) *Cursor {
+func (m *Mongo) Find(ns string, query *Bson, fields *Bson, limit, skip, options int) (*Cursor, error) {
+    if query == nil {
+        query = &Bson{}
+    }
+    if fields == nil {
+        fields = &Bson{}
+    }
     c := C.mongo_find(m.conn, C.CString(ns), query._bson,
         fields._bson, C.int(limit), C.int(skip), C.int(options))
     if c == nil {
-        return nil
+        // error need check
+        return nil, errors.New("has error: " + m.Error().Error())
     }
     c2 := &Cursor{
         cursor: c,
     }
-    return c2
+    return c2, nil
 }
 
 /**
@@ -321,6 +338,11 @@ func (cur *Cursor) Bson() *Bson {
     return &Bson{_bson: b}
 }
 
+// This cursor's current bson object. 
+func (cur *Cursor) Current() *Bson {
+    return &Bson{_bson: &cur.cursor.current}
+}
+
 // /**
 //  * Iterate the cursor, returning the next item. When successful,
 //  *   the returned object will be stored in cursor->current;
@@ -347,6 +369,12 @@ func (cur *Cursor) Next() int {
 // MONGO_EXPORT int mongo_cursor_destroy( mongo_cursor *cursor );
 func (cur *Cursor) Destroy() int {
     return int(C.mongo_cursor_destroy(cur.cursor))
+}
+
+func (c *Cursor) GetIterator() *BsonIterator {
+    it := NewBsonIterator()
+    it.Init(c.Current())
+    return it
 }
 
 // /**
@@ -383,6 +411,12 @@ func (m *Mongo) FindOne(ns string, query, fields, out *Bson) int {
 //  */
 // MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *coll,
 //                                  const bson *query );
+func (m *Mongo) Count(db, coll string, query *Bson) int64 {
+    if query == nil {
+        query = &Bson{}
+    }
+    return int64(C.mongo_count(m.conn, C.CString(db), C.CString(coll), query._bson))
+}
 
 // /**
 //  * Create a compound index.
