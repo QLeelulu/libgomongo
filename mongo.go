@@ -55,7 +55,7 @@ type M map[string]interface{}
 
 type Mongo struct {
     conn *C.mongo
-    pool *ConnectionPool
+    pool *Pool
 }
 
 type Cursor struct {

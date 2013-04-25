@@ -273,6 +273,17 @@ func (c *Mongo) Destroy() {
     C.mongo_destroy(c.conn)
 }
 
+// close the connection.
+// if pool is set, will put back to the connection pool,
+// else whil destroy the connection.
+func (c *Mongo) Close() {
+    if c.pool != nil {
+        c.pool.Put(c)
+    } else {
+        c.Destroy()
+    }
+}
+
 // /**
 //  * Specify the write concern object that this connection should use
 //  * by default for all writes (inserts, updates, and deletes). This value
@@ -286,17 +297,6 @@ func (c *Mongo) Destroy() {
 //         mongo_write_concern *write_concern );
 func (c *Mongo) SetWriteConcern(mongo_write_concern *MongoWriteConcern) {
     C.mongo_set_write_concern(c.conn, mongo_write_concern.writeConcern)
-}
-
-// close the connection.
-// if pool is set, will put back to the connection pool,
-// else whil destroy the connection.
-func (c *Mongo) Close() {
-    if c.pool != nil {
-        c.pool.Put(c)
-    } else {
-        c.Destroy()
-    }
 }
 
 // /**
@@ -319,46 +319,3 @@ func (c *Mongo) Close() {
 // MONGO_EXPORT void mongo_write_concern_set_j( mongo_write_concern *write_concern, int j );
 // MONGO_EXPORT void mongo_write_concern_set_fsync( mongo_write_concern *write_concern, int fsync );
 // MONGO_EXPORT void mongo_write_concern_set_mode( mongo_write_concern *write_concern, const char* mode );
-
-type ConnectionPool struct {
-    Size int
-    Host string
-    Port int
-
-    freeConn chan *Mongo
-}
-
-func (self *ConnectionPool) Get() *Mongo {
-    if len(self.freeConn) == 0 {
-        go func() {
-            for i := 0; i < self.Size/2; i++ {
-                conn := NewMongo()
-                status := conn.Client(self.Host, self.Port)
-                if status != MONGO_OK {
-                    fmt.Println(conn.Error().Error())
-                    return
-                }
-                conn.pool = self
-                self.Put(conn)
-            }
-        }()
-    }
-    return <-self.freeConn
-}
-
-func (self *ConnectionPool) Put(conn *Mongo) {
-    if len(self.freeConn) >= self.Size {
-        conn.Destroy()
-        return
-    }
-    self.freeConn <- conn
-}
-
-func NewConnPool(host string, port, size int) ConnectionPool {
-    p := ConnectionPool{}
-    p.Host = host
-    p.Port = port
-    p.Size = size
-    p.freeConn = make(chan *Mongo, size)
-    return p
-}

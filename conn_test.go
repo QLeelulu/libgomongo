@@ -4,7 +4,7 @@ import (
     "fmt"
     "github.com/couchbaselabs/go.assert"
     "testing"
-    "time"
+    // "time"
 )
 
 var (
@@ -27,19 +27,4 @@ func TestConn(t *testing.T) {
     conn.Destroy()
 
     assert.Equals(t, status, MONGO_OK)
-}
-
-func TestConnPool(t *testing.T) {
-    size := 20
-    pool := NewConnPool(host, port, size)
-    assert.Equals(t, pool.Host, host)
-    assert.Equals(t, pool.Port, port)
-    assert.Equals(t, pool.Size, size)
-
-    conn := pool.Get()
-    time.Sleep(1 * time.Second)
-    assert.Equals(t, len(pool.freeConn), size/2-1)
-
-    conn.Close()
-    assert.Equals(t, len(pool.freeConn), size/2)
 }
