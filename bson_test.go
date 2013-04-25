@@ -2,7 +2,7 @@ package libgomongo
 
 import (
     // "fmt"
-    "github.com/sdegutis/go.assert"
+    "github.com/couchbaselabs/go.assert"
     "testing"
 )
 

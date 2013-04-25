@@ -288,6 +288,17 @@ func (c *Mongo) SetWriteConcern(mongo_write_concern *MongoWriteConcern) {
     C.mongo_set_write_concern(c.conn, mongo_write_concern.writeConcern)
 }
 
+// close the connection.
+// if pool is set, will put back to the connection pool,
+// else whil destroy the connection.
+func (c *Mongo) Close() {
+    if c.pool != nil {
+        c.pool.Put(c)
+    } else {
+        c.Destroy()
+    }
+}
+
 // /**
 //  * The following functions get the attributes of the write_concern object.
 //  *
@@ -308,3 +319,46 @@ func (c *Mongo) SetWriteConcern(mongo_write_concern *MongoWriteConcern) {
 // MONGO_EXPORT void mongo_write_concern_set_j( mongo_write_concern *write_concern, int j );
 // MONGO_EXPORT void mongo_write_concern_set_fsync( mongo_write_concern *write_concern, int fsync );
 // MONGO_EXPORT void mongo_write_concern_set_mode( mongo_write_concern *write_concern, const char* mode );
+
+type connectionPool struct {
+    Size int
+    Host string
+    Port int
+
+    freeConn chan *Mongo
+}
+
+func (self *connectionPool) Get() *Mongo {
+    if len(self.freeConn) == 0 {
+        go func() {
+            for i := 0; i < self.Size/2; i++ {
+                conn := NewMongo()
+                status := conn.Client(self.Host, self.Port)
+                if status != MONGO_OK {
+                    fmt.Println(conn.Error().Error())
+                    return
+                }
+                conn.pool = self
+                self.Put(conn)
+            }
+        }()
+    }
+    return <-self.freeConn
+}
+
+func (self *connectionPool) Put(conn *Mongo) {
+    if len(self.freeConn) >= self.Size {
+        conn.Destroy()
+        return
+    }
+    self.freeConn <- conn
+}
+
+func NewConnPool(host string, port, size int) connectionPool {
+    p := connectionPool{}
+    p.Host = host
+    p.Port = port
+    p.Size = size
+    p.freeConn = make(chan *Mongo, size)
+    return p
+}
