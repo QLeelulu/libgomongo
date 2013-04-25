@@ -320,7 +320,7 @@ func (c *Mongo) Close() {
 // MONGO_EXPORT void mongo_write_concern_set_fsync( mongo_write_concern *write_concern, int fsync );
 // MONGO_EXPORT void mongo_write_concern_set_mode( mongo_write_concern *write_concern, const char* mode );
 
-type connectionPool struct {
+type ConnectionPool struct {
     Size int
     Host string
     Port int
@@ -328,7 +328,7 @@ type connectionPool struct {
     freeConn chan *Mongo
 }
 
-func (self *connectionPool) Get() *Mongo {
+func (self *ConnectionPool) Get() *Mongo {
     if len(self.freeConn) == 0 {
         go func() {
             for i := 0; i < self.Size/2; i++ {
@@ -346,7 +346,7 @@ func (self *connectionPool) Get() *Mongo {
     return <-self.freeConn
 }
 
-func (self *connectionPool) Put(conn *Mongo) {
+func (self *ConnectionPool) Put(conn *Mongo) {
     if len(self.freeConn) >= self.Size {
         conn.Destroy()
         return
@@ -354,8 +354,8 @@ func (self *connectionPool) Put(conn *Mongo) {
     self.freeConn <- conn
 }
 
-func NewConnPool(host string, port, size int) connectionPool {
-    p := connectionPool{}
+func NewConnPool(host string, port, size int) ConnectionPool {
+    p := ConnectionPool{}
     p.Host = host
     p.Port = port
     p.Size = size
