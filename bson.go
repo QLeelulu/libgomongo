@@ -1,7 +1,6 @@
 package libgomongo
 
 // #cgo CFLAGS: -std=gnu99 -I./mongo-c-driver/src/
-// #cgo LDFLAGS: -L./mongo-c-driver/src/ -lmongoc
 // #include "bson.h"
 import "C"
 
